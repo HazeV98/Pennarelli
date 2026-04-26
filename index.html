@@ -79,8 +79,10 @@
         <div class="card">
             <input type="text" id="drawing-name" placeholder="Nome del disegno..." style="width: calc(100% - 22px); margin-bottom: 15px;">
             <div style="display: flex; gap: 8px;">
-                <input type="text" id="color-input" placeholder="Numero colore" style="flex-grow: 1;" inputmode="numeric">
-                <button onclick="addColor()" style="background: var(--primary); color: white; width: 50px; font-size: 20px;">+</button>
+                <form onsubmit="event.preventDefault(); addColor();" style="display: flex; gap: 8px; flex-grow: 1; margin: 0;">
+                    <input type="text" id="color-input" placeholder="Numero colore" style="flex-grow: 1;" inputmode="numeric">
+                    <button type="button" onclick="addColor()" style="background: var(--primary); color: white; width: 50px; font-size: 20px;">+</button>
+                </form>
             </div>
             <div id="current-colors-list" style="margin-top: 20px;"></div>
         </div>
@@ -115,8 +117,12 @@
                 document.getElementById('drawing-name').value = d.name;
             } else {
                 currentDrawingId = Date.now();
-                document.getElementById('drawing-name').value = "";
-                drawings.push({ id: currentDrawingId, name: "", colors: [], finished: false });
+                // Calcola numero disegno (totale disegni + 1)
+                const nextNum = drawings.length + 1;
+                const defaultName = "Disegno " + nextNum;
+                
+                document.getElementById('drawing-name').value = defaultName;
+                drawings.push({ id: currentDrawingId, name: defaultName, colors: [], finished: false });
             }
             renderCurrentDrawing();
             showView('drawing-view');
@@ -128,10 +134,19 @@
             if (!color) return;
             
             const d = drawings.find(x => x.id === currentDrawingId);
+            
+            // Controllo colore già inserito
+            if (d.colors.includes(color)) {
+                alert("Colore già inserito");
+                input.focus(); // Mantiene la tastiera aperta
+                return;
+            }
+
             d.colors.push(color);
             d.name = document.getElementById('drawing-name').value || "Senza nome";
             
             input.value = "";
+            input.focus(); // Mantiene la tastiera aperta dopo l'inserimento
             save();
             renderCurrentDrawing();
         }
@@ -150,6 +165,15 @@
             d.finished = true;
             save();
             showView('home-view');
+        }
+
+        function deleteDrawing(id) {
+            if(confirm("Sei sicuro di voler eliminare questo disegno?")) {
+                drawings = drawings.filter(x => x.id !== id);
+                save();
+                renderHome();
+                renderHistory();
+            }
         }
 
         function save() {
@@ -172,9 +196,14 @@
             activeContainer.innerHTML = active.length ? '<h3>Disegni in corso:</h3>' : '';
             active.forEach(d => {
                 activeContainer.innerHTML += `
-                    <div class="card" onclick="openNewDrawing(${d.id})" style="border-left: 5px solid var(--primary);">
-                        <strong>${d.name || 'Senza nome'}</strong><br>
-                        <small>${d.colors.length} colori usati finora</small>
+                    <div class="card" style="border-left: 5px solid var(--primary);">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div onclick="openNewDrawing(${d.id})" style="flex-grow:1; cursor:pointer;">
+                                <strong>${d.name || 'Senza nome'}</strong> (${d.colors.length} colori)<br>
+                                <small>In corso...</small>
+                            </div>
+                            <button onclick="deleteDrawing(${d.id})" style="background:var(--danger); color:white; padding:8px 12px; margin-left:10px;">🗑</button>
+                        </div>
                     </div>
                 `;
             });
@@ -203,10 +232,15 @@
             container.innerHTML = finished.map(d => `
                 <div class="card history-item">
                     <div class="history-header">
-                        <strong>${d.name}</strong>
-                        <button onclick="openNewDrawing(${d.id})" style="font-size:12px; background: #e2e8f0;">Modifica</button>
+                        <div>
+                            <strong>${d.name}</strong> <span style="font-size:14px; color:#64748b;">(${d.colors.length} colori)</span>
+                        </div>
+                        <div>
+                            <button onclick="openNewDrawing(${d.id})" style="font-size:12px; background: #e2e8f0;">Modifica</button>
+                            <button onclick="deleteDrawing(${d.id})" style="font-size:12px; background: var(--danger); color:white; margin-left:5px;">🗑</button>
+                        </div>
                     </div>
-                    <div style="display:flex; flex-wrap:wrap;">
+                    <div style="display:flex; flex-wrap:wrap; margin-top:5px;">
                         ${d.colors.map(c => `<span class="color-tag" style="font-size:12px; padding:3px 8px;">${c}</span>`).join('')}
                     </div>
                 </div>
