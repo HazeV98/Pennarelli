@@ -1,0 +1,16 @@
+{
+  "name": "My Marker",
+  "short_name": "My Marker",
+  "description": "App per tracciare l'uso dei pennarelli nei disegni",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "520x520",
+      "type": "image/png"
+    }
+  ]
+}
