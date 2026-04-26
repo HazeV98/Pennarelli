@@ -4,20 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Marker Tracker</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    
     <style>
         :root {
             --primary: #2563eb;
             --success: #16a34a;
+            --danger: #ef4444;
             --bg: #f8fafc;
             --text: #1e293b;
         }
         body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; }
-        button { cursor: pointer; border: none; border-radius: 8px; padding: 10px 15px; font-weight: bold; }
-        input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; }
+        button { cursor: pointer; border: none; border-radius: 8px; padding: 10px 15px; font-weight: bold; transition: opacity 0.2s; }
+        button:active { opacity: 0.7; }
+        input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; outline: none; }
+        input:focus { border-color: var(--primary); }
 
         /* Layout */
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .card { background: white; padding: 15px; border-radius: 12px; shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 15px; border: 1px solid #e2e8f0; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 15px; border: 1px solid #e2e8f0; }
         
         /* Views */
         .view { display: none; }
@@ -25,14 +34,19 @@
 
         /* Home */
         .btn-main { width: 100%; padding: 20px; font-size: 18px; margin-bottom: 10px; background: var(--primary); color: white; }
-        .btn-history { width: 100%; background: #64748b; color: white; }
+        .btn-history { width: 100%; background: #64748b; color: white; margin-bottom: 20px; }
         .stats-list { list-style: none; padding: 0; }
-        .stats-item { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee; }
+        .stats-item { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #f1f5f9; }
+        .stats-item:last-child { border-bottom: none; }
 
         /* New/Edit Drawing */
-        .nav-drawing { display: flex; justify-content: space-between; margin-bottom: 20px; }
-        .color-tag { display: inline-block; background: #e2e8f0; padding: 5px 10px; border-radius: 20px; margin: 5px; }
-        .color-tag span { margin-left: 8px; color: red; cursor: pointer; }
+        .nav-drawing { display: flex; justify-content: space-between; margin-bottom: 20px; align-items: center; }
+        .color-tag { display: inline-flex; align-items: center; background: #e2e8f0; padding: 6px 12px; border-radius: 20px; margin: 5px; font-weight: bold; }
+        .color-tag span { margin-left: 10px; color: var(--danger); cursor: pointer; font-size: 18px; }
+        
+        /* History */
+        .history-item { display: flex; flex-direction: column; gap: 10px; }
+        .history-header { display: flex; justify-content: space-between; align-items: center; }
     </style>
 </head>
 <body>
@@ -42,47 +56,46 @@
         <button class="btn-main" onclick="openNewDrawing()">+ Aggiungi Disegno</button>
         <button class="btn-history" onclick="showView('history-view')">📜 Cronologia Disegni</button>
 
-        <div id="active-drawings-container">
-            </div>
+        <div id="active-drawings-container"></div>
 
         <h3>Classifica Colori (Più usati)</h3>
         <div class="card">
             <div id="color-stats" class="stats-list"></div>
         </div>
 
-        <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: space-between;">
-            <button onclick="exportBackup()" style="flex: 1; background: #0284c7; color: white;">💾 Esporta Backup</button>
-            <button onclick="document.getElementById('import-file').click()" style="flex: 1; background: #d97706; color: white;">📂 Importa Backup</button>
+        <div style="margin-top: 30px; display: flex; gap: 10px;">
+            <button onclick="exportBackup()" style="flex: 1; background: #0284c7; color: white; font-size: 12px;">💾 Esporta</button>
+            <button onclick="document.getElementById('import-file').click()" style="flex: 1; background: #d97706; color: white; font-size: 12px;">📂 Importa</button>
             <input type="file" id="import-file" style="display: none;" accept=".json" onchange="importBackup(event)">
         </div>
     </div>
 
     <div id="drawing-view" class="view">
         <div class="nav-drawing">
-            <button onclick="showView('home-view')" style="background: #ef4444; color: white;">← Home</button>
+            <button onclick="showView('home-view')" style="background: #94a3b8; color: white;">← Home</button>
             <button id="finish-btn" onclick="finishDrawing()" style="background: var(--success); color: white;">Disegno Finito ✓</button>
         </div>
 
         <div class="card">
-            <input type="text" id="drawing-name" placeholder="Nome del disegno..." style="width: 90%; margin-bottom: 15px;">
-            <div style="display: flex; gap: 5px;">
-                <input type="text" id="color-input" placeholder="Numero colore" style="flex-grow: 1;">
-                <button onclick="addColor()" style="background: var(--primary); color: white;">+</button>
+            <input type="text" id="drawing-name" placeholder="Nome del disegno..." style="width: calc(100% - 22px); margin-bottom: 15px;">
+            <div style="display: flex; gap: 8px;">
+                <input type="text" id="color-input" placeholder="Numero colore" style="flex-grow: 1;" inputmode="numeric">
+                <button onclick="addColor()" style="background: var(--primary); color: white; width: 50px; font-size: 20px;">+</button>
             </div>
-            <div id="current-colors-list" style="margin-top: 15px;"></div>
+            <div id="current-colors-list" style="margin-top: 20px;"></div>
         </div>
     </div>
 
     <div id="history-view" class="view">
         <div class="header">
-            <button onclick="showView('home-view')">← Torna alla Home</button>
-            <h2>Cronologia</h2>
+            <button onclick="showView('home-view')" style="background: #94a3b8; color: white;">← Torna</button>
+            <h2 style="margin: 0;">Cronologia</h2>
         </div>
         <div id="history-list"></div>
     </div>
 
     <script>
-        let drawings = JSON.parse(localStorage.getItem('drawings')) || [];
+        let drawings = JSON.parse(localStorage.getItem('markers_data')) || [];
         let currentDrawingId = null;
 
         // --- Navigazione ---
@@ -91,9 +104,10 @@
             document.getElementById(viewId).classList.add('active');
             if(viewId === 'home-view') renderHome();
             if(viewId === 'history-view') renderHistory();
+            window.scrollTo(0,0);
         }
 
-        // --- Gestione Disegni ---
+        // --- Logica Dati ---
         function openNewDrawing(id = null) {
             if (id) {
                 currentDrawingId = id;
@@ -131,14 +145,15 @@
 
         function finishDrawing() {
             const d = drawings.find(x => x.id === currentDrawingId);
-            d.name = document.getElementById('drawing-name').value || "Disegno Anonimo";
+            const nameField = document.getElementById('drawing-name').value.trim();
+            d.name = nameField || "Disegno del " + new Date().toLocaleDateString();
             d.finished = true;
             save();
             showView('home-view');
         }
 
         function save() {
-            localStorage.setItem('drawings', JSON.stringify(drawings));
+            localStorage.setItem('markers_data', JSON.stringify(drawings));
         }
 
         // --- Rendering ---
@@ -146,24 +161,25 @@
             const d = drawings.find(x => x.id === currentDrawingId);
             const list = document.getElementById('current-colors-list');
             list.innerHTML = d.colors.map((c, i) => `
-                <span class="color-tag">${c} <span onclick="removeColor(${i})">✕</span></span>
+                <span class="color-tag">${c} <span onclick="removeColor(${i})">×</span></span>
             `).join('');
         }
 
         function renderHome() {
-            // 1. Disegni attivi (non finiti)
+            // Disegni attivi
             const activeContainer = document.getElementById('active-drawings-container');
             const active = drawings.filter(d => !d.finished);
-            activeContainer.innerHTML = active.length ? '<h3>In corso:</h3>' : '';
+            activeContainer.innerHTML = active.length ? '<h3>Disegni in corso:</h3>' : '';
             active.forEach(d => {
                 activeContainer.innerHTML += `
-                    <div class="card" onclick="openNewDrawing(${d.id})">
-                        <strong>${d.name || 'Disegno senza nome'}</strong> (In corso...)
+                    <div class="card" onclick="openNewDrawing(${d.id})" style="border-left: 5px solid var(--primary);">
+                        <strong>${d.name || 'Senza nome'}</strong><br>
+                        <small>${d.colors.length} colori usati finora</small>
                     </div>
                 `;
             });
 
-            // 2. Classifica colori
+            // Statistiche colori
             const stats = {};
             drawings.forEach(d => {
                 d.colors.forEach(c => {
@@ -176,67 +192,65 @@
             statsDiv.innerHTML = sortedColors.map(([num, count]) => `
                 <div class="stats-item">
                     <span>Colore <strong>#${num}</strong></span>
-                    <span>Usato ${count} volte</span>
+                    <span>Usato <strong>${count}</strong> volte</span>
                 </div>
-            `).join('') || '<p>Nessun dato disponibile</p>';
+            `).join('') || '<p style="text-align:center; padding:10px;">Nessun colore registrato</p>';
         }
 
         function renderHistory() {
             const container = document.getElementById('history-list');
             const finished = drawings.filter(d => d.finished).reverse();
             container.innerHTML = finished.map(d => `
-                <div class="card">
-                    <div style="display:flex; justify-content:space-between">
+                <div class="card history-item">
+                    <div class="history-header">
                         <strong>${d.name}</strong>
-                        <button onclick="openNewDrawing(${d.id})" style="font-size:12px">Modifica</button>
+                        <button onclick="openNewDrawing(${d.id})" style="font-size:12px; background: #e2e8f0;">Modifica</button>
                     </div>
-                    <div style="margin-top:10px">${d.colors.map(c => `<span class="color-tag">${c}</span>`).join('')}</div>
+                    <div style="display:flex; flex-wrap:wrap;">
+                        ${d.colors.map(c => `<span class="color-tag" style="font-size:12px; padding:3px 8px;">${c}</span>`).join('')}
+                    </div>
                 </div>
-            `).join('') || '<p>Nessun disegno completato</p>';
+            `).join('') || '<p style="text-align:center;">Nessun disegno completato</p>';
         }
 
-        // --- Funzioni di Backup ---
+        // --- Backup ---
         function exportBackup() {
             const dataStr = JSON.stringify(drawings, null, 2);
             const blob = new Blob([dataStr], { type: "application/json" });
             const url = URL.createObjectURL(blob);
-            
             const a = document.createElement('a');
             a.href = url;
-            // Aggiunge la data di oggi al nome del file
-            const date = new Date().toISOString().slice(0, 10);
-            a.download = `pennarelli_backup_${date}.json`;
+            a.download = `pennarelli_backup_${new Date().toISOString().slice(0,10)}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            URL.revokeObjectURL(url);
         }
 
         function importBackup(event) {
             const file = event.target.files[0];
             if (!file) return;
-            
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
-                    const importedData = JSON.parse(e.target.result);
-                    if (Array.isArray(importedData)) {
-                        drawings = importedData;
+                    const imported = JSON.parse(e.target.result);
+                    if (Array.isArray(imported)) {
+                        drawings = imported;
                         save();
                         renderHome();
-                        alert("Backup importato con successo!");
-                    } else {
-                        alert("Il file non contiene dati validi per questa app.");
+                        alert("Dati importati!");
                     }
-                } catch (err) {
-                    alert("Errore durante la lettura del file. Assicurati che sia un file JSON valido.");
-                }
+                } catch (err) { alert("Errore nel file JSON."); }
             };
             reader.readAsText(file);
-            event.target.value = ''; // Resetta l'input per permettere di ricaricare lo stesso file se necessario
         }
 
-        // Inizializzazione
+        // --- PWA Service Worker ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(err => console.log('SW error:', err));
+            });
+        }
+
         renderHome();
     </script>
 </body>
