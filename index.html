@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Marker Tracker</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --success: #16a34a;
+            --bg: #f8fafc;
+            --text: #1e293b;
+        }
+        body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 15px; }
+        button { cursor: pointer; border: none; border-radius: 8px; padding: 10px 15px; font-weight: bold; }
+        input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 16px; }
+
+        /* Layout */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .card { background: white; padding: 15px; border-radius: 12px; shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 15px; border: 1px solid #e2e8f0; }
+        
+        /* Views */
+        .view { display: none; }
+        .view.active { display: block; }
+
+        /* Home */
+        .btn-main { width: 100%; padding: 20px; font-size: 18px; margin-bottom: 10px; background: var(--primary); color: white; }
+        .btn-history { width: 100%; background: #64748b; color: white; }
+        .stats-list { list-style: none; padding: 0; }
+        .stats-item { display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #eee; }
+
+        /* New/Edit Drawing */
+        .nav-drawing { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .color-tag { display: inline-block; background: #e2e8f0; padding: 5px 10px; border-radius: 20px; margin: 5px; }
+        .color-tag span { margin-left: 8px; color: red; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="home-view" class="view active">
+        <h1>Pennarelli App</h1>
+        <button class="btn-main" onclick="openNewDrawing()">+ Aggiungi Disegno</button>
+        <button class="btn-history" onclick="showView('history-view')">📜 Cronologia Disegni</button>
+
+        <div id="active-drawings-container">
+            </div>
+
+        <h3>Classifica Colori (Più usati)</h3>
+        <div class="card">
+            <div id="color-stats" class="stats-list"></div>
+        </div>
+
+        <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: space-between;">
+            <button onclick="exportBackup()" style="flex: 1; background: #0284c7; color: white;">💾 Esporta Backup</button>
+            <button onclick="document.getElementById('import-file').click()" style="flex: 1; background: #d97706; color: white;">📂 Importa Backup</button>
+            <input type="file" id="import-file" style="display: none;" accept=".json" onchange="importBackup(event)">
+        </div>
+    </div>
+
+    <div id="drawing-view" class="view">
+        <div class="nav-drawing">
+            <button onclick="showView('home-view')" style="background: #ef4444; color: white;">← Home</button>
+            <button id="finish-btn" onclick="finishDrawing()" style="background: var(--success); color: white;">Disegno Finito ✓</button>
+        </div>
+
+        <div class="card">
+            <input type="text" id="drawing-name" placeholder="Nome del disegno..." style="width: 90%; margin-bottom: 15px;">
+            <div style="display: flex; gap: 5px;">
+                <input type="text" id="color-input" placeholder="Numero colore" style="flex-grow: 1;">
+                <button onclick="addColor()" style="background: var(--primary); color: white;">+</button>
+            </div>
+            <div id="current-colors-list" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+
+    <div id="history-view" class="view">
+        <div class="header">
+            <button onclick="showView('home-view')">← Torna alla Home</button>
+            <h2>Cronologia</h2>
+        </div>
+        <div id="history-list"></div>
+    </div>
+
+    <script>
+        let drawings = JSON.parse(localStorage.getItem('drawings')) || [];
+        let currentDrawingId = null;
+
+        // --- Navigazione ---
+        function showView(viewId) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.getElementById(viewId).classList.add('active');
+            if(viewId === 'home-view') renderHome();
+            if(viewId === 'history-view') renderHistory();
+        }
+
+        // --- Gestione Disegni ---
+        function openNewDrawing(id = null) {
+            if (id) {
+                currentDrawingId = id;
+                const d = drawings.find(x => x.id === id);
+                document.getElementById('drawing-name').value = d.name;
+            } else {
+                currentDrawingId = Date.now();
+                document.getElementById('drawing-name').value = "";
+                drawings.push({ id: currentDrawingId, name: "", colors: [], finished: false });
+            }
+            renderCurrentDrawing();
+            showView('drawing-view');
+        }
+
+        function addColor() {
+            const input = document.getElementById('color-input');
+            const color = input.value.trim();
+            if (!color) return;
+            
+            const d = drawings.find(x => x.id === currentDrawingId);
+            d.colors.push(color);
+            d.name = document.getElementById('drawing-name').value || "Senza nome";
+            
+            input.value = "";
+            save();
+            renderCurrentDrawing();
+        }
+
+        function removeColor(index) {
+            const d = drawings.find(x => x.id === currentDrawingId);
+            d.colors.splice(index, 1);
+            save();
+            renderCurrentDrawing();
+        }
+
+        function finishDrawing() {
+            const d = drawings.find(x => x.id === currentDrawingId);
+            d.name = document.getElementById('drawing-name').value || "Disegno Anonimo";
+            d.finished = true;
+            save();
+            showView('home-view');
+        }
+
+        function save() {
+            localStorage.setItem('drawings', JSON.stringify(drawings));
+        }
+
+        // --- Rendering ---
+        function renderCurrentDrawing() {
+            const d = drawings.find(x => x.id === currentDrawingId);
+            const list = document.getElementById('current-colors-list');
+            list.innerHTML = d.colors.map((c, i) => `
+                <span class="color-tag">${c} <span onclick="removeColor(${i})">✕</span></span>
+            `).join('');
+        }
+
+        function renderHome() {
+            // 1. Disegni attivi (non finiti)
+            const activeContainer = document.getElementById('active-drawings-container');
+            const active = drawings.filter(d => !d.finished);
+            activeContainer.innerHTML = active.length ? '<h3>In corso:</h3>' : '';
+            active.forEach(d => {
+                activeContainer.innerHTML += `
+                    <div class="card" onclick="openNewDrawing(${d.id})">
+                        <strong>${d.name || 'Disegno senza nome'}</strong> (In corso...)
+                    </div>
+                `;
+            });
+
+            // 2. Classifica colori
+            const stats = {};
+            drawings.forEach(d => {
+                d.colors.forEach(c => {
+                    stats[c] = (stats[c] || 0) + 1;
+                });
+            });
+
+            const sortedColors = Object.entries(stats).sort((a, b) => b[1] - a[1]);
+            const statsDiv = document.getElementById('color-stats');
+            statsDiv.innerHTML = sortedColors.map(([num, count]) => `
+                <div class="stats-item">
+                    <span>Colore <strong>#${num}</strong></span>
+                    <span>Usato ${count} volte</span>
+                </div>
+            `).join('') || '<p>Nessun dato disponibile</p>';
+        }
+
+        function renderHistory() {
+            const container = document.getElementById('history-list');
+            const finished = drawings.filter(d => d.finished).reverse();
+            container.innerHTML = finished.map(d => `
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between">
+                        <strong>${d.name}</strong>
+                        <button onclick="openNewDrawing(${d.id})" style="font-size:12px">Modifica</button>
+                    </div>
+                    <div style="margin-top:10px">${d.colors.map(c => `<span class="color-tag">${c}</span>`).join('')}</div>
+                </div>
+            `).join('') || '<p>Nessun disegno completato</p>';
+        }
+
+        // --- Funzioni di Backup ---
+        function exportBackup() {
+            const dataStr = JSON.stringify(drawings, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            // Aggiunge la data di oggi al nome del file
+            const date = new Date().toISOString().slice(0, 10);
+            a.download = `pennarelli_backup_${date}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function importBackup(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (Array.isArray(importedData)) {
+                        drawings = importedData;
+                        save();
+                        renderHome();
+                        alert("Backup importato con successo!");
+                    } else {
+                        alert("Il file non contiene dati validi per questa app.");
+                    }
+                } catch (err) {
+                    alert("Errore durante la lettura del file. Assicurati che sia un file JSON valido.");
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = ''; // Resetta l'input per permettere di ricaricare lo stesso file se necessario
+        }
+
+        // Inizializzazione
+        renderHome();
+    </script>
+</body>
+</html>
