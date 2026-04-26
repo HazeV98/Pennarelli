@@ -44,9 +44,9 @@
         .color-tag { display: inline-flex; align-items: center; background: #e2e8f0; padding: 6px 12px; border-radius: 20px; margin: 5px; font-weight: bold; }
         .color-tag span { margin-left: 10px; color: var(--danger); cursor: pointer; font-size: 18px; }
         
-        /* History */
-        .history-item { display: flex; flex-direction: column; gap: 10px; }
-        .history-header { display: flex; justify-content: space-between; align-items: center; }
+        /* History & Lists */
+        .drawing-header { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .delete-btn { background: var(--danger); color: white; padding: 8px 12px; margin-left: 10px; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -117,7 +117,7 @@
                 document.getElementById('drawing-name').value = d.name;
             } else {
                 currentDrawingId = Date.now();
-                // Calcola numero disegno (totale disegni + 1)
+                // Precompilazione Disegno X+1
                 const nextNum = drawings.length + 1;
                 const defaultName = "Disegno " + nextNum;
                 
@@ -135,10 +135,10 @@
             
             const d = drawings.find(x => x.id === currentDrawingId);
             
-            // Controllo colore già inserito
+            // Controllo duplicati nello stesso disegno
             if (d.colors.includes(color)) {
-                alert("Colore già inserito");
-                input.focus(); // Mantiene la tastiera aperta
+                alert("Colore già inserito in questo disegno");
+                input.focus();
                 return;
             }
 
@@ -146,7 +146,7 @@
             d.name = document.getElementById('drawing-name').value || "Senza nome";
             
             input.value = "";
-            input.focus(); // Mantiene la tastiera aperta dopo l'inserimento
+            input.focus(); // Mantiene il focus per inserimento continuo
             save();
             renderCurrentDrawing();
         }
@@ -161,7 +161,7 @@
         function finishDrawing() {
             const d = drawings.find(x => x.id === currentDrawingId);
             const nameField = document.getElementById('drawing-name').value.trim();
-            d.name = nameField || "Disegno del " + new Date().toLocaleDateString();
+            d.name = nameField || "Disegno";
             d.finished = true;
             save();
             showView('home-view');
@@ -190,25 +190,23 @@
         }
 
         function renderHome() {
-            // Disegni attivi
             const activeContainer = document.getElementById('active-drawings-container');
             const active = drawings.filter(d => !d.finished);
             activeContainer.innerHTML = active.length ? '<h3>Disegni in corso:</h3>' : '';
             active.forEach(d => {
                 activeContainer.innerHTML += `
                     <div class="card" style="border-left: 5px solid var(--primary);">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div class="drawing-header">
                             <div onclick="openNewDrawing(${d.id})" style="flex-grow:1; cursor:pointer;">
-                                <strong>${d.name || 'Senza nome'}</strong> (${d.colors.length} colori)<br>
-                                <small>In corso...</small>
+                                <strong>${d.name}</strong> (${d.colors.length} colori)<br>
+                                <small>Tocca per continuare</small>
                             </div>
-                            <button onclick="deleteDrawing(${d.id})" style="background:var(--danger); color:white; padding:8px 12px; margin-left:10px;">🗑</button>
+                            <button class="delete-btn" onclick="deleteDrawing(${d.id})">🗑</button>
                         </div>
                     </div>
                 `;
             });
 
-            // Statistiche colori
             const stats = {};
             drawings.forEach(d => {
                 d.colors.forEach(c => {
@@ -230,17 +228,17 @@
             const container = document.getElementById('history-list');
             const finished = drawings.filter(d => d.finished).reverse();
             container.innerHTML = finished.map(d => `
-                <div class="card history-item">
-                    <div class="history-header">
+                <div class="card">
+                    <div class="drawing-header">
                         <div>
                             <strong>${d.name}</strong> <span style="font-size:14px; color:#64748b;">(${d.colors.length} colori)</span>
                         </div>
                         <div>
                             <button onclick="openNewDrawing(${d.id})" style="font-size:12px; background: #e2e8f0;">Modifica</button>
-                            <button onclick="deleteDrawing(${d.id})" style="font-size:12px; background: var(--danger); color:white; margin-left:5px;">🗑</button>
+                            <button class="delete-btn" onclick="deleteDrawing(${d.id})" style="font-size:12px;">🗑</button>
                         </div>
                     </div>
-                    <div style="display:flex; flex-wrap:wrap; margin-top:5px;">
+                    <div style="display:flex; flex-wrap:wrap; margin-top:10px;">
                         ${d.colors.map(c => `<span class="color-tag" style="font-size:12px; padding:3px 8px;">${c}</span>`).join('')}
                     </div>
                 </div>
@@ -278,10 +276,21 @@
             reader.readAsText(file);
         }
 
-        // --- PWA Service Worker ---
+        // --- Gestione Aggiornamenti Service Worker ---
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js').catch(err => console.log('SW error:', err));
+                navigator.serviceWorker.register('sw.js').then(reg => {
+                    reg.addEventListener('updatefound', () => {
+                        const newWorker = reg.installing;
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                if (confirm("Nuova versione disponibile! Vuoi aggiornare l'app?")) {
+                                    window.location.reload();
+                                }
+                            }
+                        });
+                    });
+                });
             });
         }
 
